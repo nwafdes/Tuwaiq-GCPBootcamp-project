@@ -10,7 +10,8 @@ resource "google_project_service" "enable_services" {
     "run.googleapis.com",
     "cloudfunctions.googleapis.com",   # 2nd gen control plane
     "eventarc.googleapis.com",
-    "cloudbuild.googleapis.com"
+    "cloudbuild.googleapis.com",
+    "generativelanguage.googleapis.com"
   ])
   project                    = var.project_id
   service                    = each.key
@@ -125,6 +126,14 @@ resource "google_project_iam_member" "fn_runtime_storage_view" {
   member  = "serviceAccount:${google_service_account.fn_runtime.email}"
 }
 
+# Communicate with Gemini API
+resource "google_project_iam_member" "fn_runtime_genai_user" {
+  project = var.project_id
+  role    = "roles/aiplatform.user"
+  member  = "serviceAccount:${google_service_account.fn_runtime.email}"
+}
+
+
 # ---- Cloud Functions (2nd gen) -> Eventarc (Pub/Sub) ----
 # This deploys your Python code as a CloudEvent function on Cloud Run.
 resource "google_cloudfunctions2_function" "event_fn" {
@@ -142,6 +151,13 @@ resource "google_cloudfunctions2_function" "event_fn" {
         bucket = google_storage_bucket.src.name
         object = google_storage_bucket_object.source_zip.name
       }
+    }
+    environment_variables = {
+      # Add any other env variables your function needs here
+      # e.g. for Gemini API:
+      GOOGLE_GENAI_USE_VERTEXAI=True
+      GOOGLE_CLOUD_PROJECT=var.project_id
+      GOOGLE_CLOUD_LOCATION=global
     }
   }
 
