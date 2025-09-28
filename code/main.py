@@ -42,5 +42,5 @@ def handle_pubsub_cloudevent(event) -> None:
     logging.info(
         "Gemini secrets analysis for %s: %s",
         object_id,
-        json.dumps(analysis, ensure_ascii=False)[:4000]  # keep logs reasonable
+        json.dumps(analysis)
     )
