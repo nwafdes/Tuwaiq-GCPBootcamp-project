@@ -12,7 +12,7 @@ import os
 import json
 import logging
 from typing import Any, Dict
-
+from string import Template
 from google import genai
 from google.genai.types import HttpOptions, GenerateContentConfig
 
@@ -22,50 +22,54 @@ MODEL_ID = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # ---- Prompt: detect secrets in the content -----------------------------------
 # This prompt is optimized for secret detection and *masked* output.
-DETECTION_PROMPT_TEMPLATE = """\
-You are a security code reviewer. Analyze the provided file content and detect any potential secrets or sensitive data.
 
-Return ONLY valid JSON (no markdown, no prose). Use this schema:
-{{
+DETECTION_PROMPT_TEMPLATE = Template("""You are a security code reviewer. Analyze the provided file content and detect any potential secrets or sensitive data.
+
+Your response MUST be:
+- A single valid JSON object
+- Strictly following the schema provided
+- No Markdown formatting, no code fences, no extra text
+
+Schema:
+{
   "has_secrets": <true|false>,
   "findings": [
-    {{
-      "type": "<one of: api_key | password | private_key | token | oauth_client_secret | cloud_key | db_connection | jwt | certificate | pii | other>",
+    {
+      "type": "<api_key | password | private_key | token | oauth_client_secret | cloud_key | db_connection | jwt | certificate | pii | other>",
       "name": "<short label or provider if known, e.g., 'Stripe', 'AWS', 'GCP SA key'>",
-      "masked_value": "<original value masked: keep only last 4 visible, others as *>", 
-      "match_excerpt": "<short excerpt around the match, with sensitive parts masked>",
+      "masked_value": "<mask all characters except the last 4; preserve any obvious prefixes, e.g. 'sk_test_****abcd'>",
+      "match_excerpt": "<short excerpt around the match, with sensitive parts masked the same way as masked_value>",
       "line": <approx line number if possible, else null>,
       "confidence": <0.0-1.0>,
       "reasoning": "<one sentence why this is likely a secret>"
-    }}
+    }
   ],
-  "summary": {{
+  "summary": {
     "count": <number of findings>,
     "suggested_actions": [
       "Revoke and rotate any exposed keys",
       "Remove secrets from source; use a secrets manager",
       "Add automated scanning to CI/CD"
     ]
-  }}
-}}
+  }
+}
 
 Rules:
-- DO NOT print full secret values; mask all but the last 4 characters. Example: "sk_test_********************abcd".
-- If no secrets are found, set "has_secrets": false and "findings": [] and still include "summary".
+- Absolutely DO NOT return Markdown code blocks, triple backticks, or escape characters like \\n or \\".
+- If no secrets are found: has_secrets=false, findings=[], summary.count=0.
+- Always mask properly: keep last 4 characters visible, everything else replaced with '*'.
 - Be conservative: if unsure, set confidence around 0.4-0.6 and explain briefly.
-- Consider common patterns: API keys, passwords, tokens (JWT/Bearer), OAuth client secrets, private keys (PEM), cloud creds (AWS/GCP/Azure), DB URLs, certificates, PII (emails, phone numbers) only if clearly sensitive in context.
 
 === FILE CONTENT START ===
-{content}
+${content}
 === FILE CONTENT END ===
-"""
+""")
 
 def _build_prompt(text: str) -> str:
-    # (Optional) guardrail: clip extremely large inputs
     max_chars = int(os.getenv("SECRETS_ANALYZER_MAX_CHARS", "400000"))
     if len(text) > max_chars:
         text = text[:max_chars] + "\n[TRUNCATED]"
-    return DETECTION_PROMPT_TEMPLATE.format(content=text)
+    return DETECTION_PROMPT_TEMPLATE.substitute(content=text)
 
 def analyze_with_gemini(text: str) -> Dict[str, Any]:
     """
