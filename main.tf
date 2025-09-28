@@ -11,7 +11,7 @@ resource "google_project_service" "enable_services" {
     "cloudfunctions.googleapis.com",   # 2nd gen control plane
     "eventarc.googleapis.com",
     "cloudbuild.googleapis.com",
-    "generativelanguage.googleapis.com"
+    "aiplatform.googleapis.com"      # for Gemini API
   ])
   project                    = var.project_id
   service                    = each.key
@@ -155,9 +155,9 @@ resource "google_cloudfunctions2_function" "event_fn" {
     environment_variables = {
       # Add any other env variables your function needs here
       # e.g. for Gemini API:
-      GOOGLE_GENAI_USE_VERTEXAI=True
+      GOOGLE_GENAI_USE_VERTEXAI="True"
       GOOGLE_CLOUD_PROJECT=var.project_id
-      GOOGLE_CLOUD_LOCATION=global
+      GOOGLE_CLOUD_LOCATION="global"
     }
   }
 
