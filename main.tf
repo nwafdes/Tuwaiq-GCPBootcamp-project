@@ -152,13 +152,6 @@ resource "google_cloudfunctions2_function" "event_fn" {
         object = google_storage_bucket_object.source_zip.name
       }
     }
-    environment_variables = {
-      # Add any other env variables your function needs here
-      # e.g. for Gemini API:
-      GOOGLE_GENAI_USE_VERTEXAI="True"
-      GOOGLE_CLOUD_PROJECT=var.project_id
-      GOOGLE_CLOUD_LOCATION="global"
-    }
   }
 
   service_config {
@@ -169,9 +162,12 @@ resource "google_cloudfunctions2_function" "event_fn" {
     service_account_email = google_service_account.fn_runtime.email
     environment_variables = {
       LOG_LEVEL = "INFO"
+      GOOGLE_GENAI_USE_VERTEXAI="True"
+      GOOGLE_CLOUD_PROJECT=var.project_id
+      GOOGLE_CLOUD_LOCATION="global"
     }
   }
-
+  
   event_trigger {
     trigger_region = var.region
     event_type     = "google.cloud.pubsub.topic.v1.messagePublished"
@@ -182,6 +178,6 @@ resource "google_cloudfunctions2_function" "event_fn" {
   depends_on = [
     google_project_service.enable_services,
     google_storage_bucket_object.source_zip,
-    google_pubsub_topic.gcs_events
+    google_pubsub_topic.gcs_events,
   ]
 }
