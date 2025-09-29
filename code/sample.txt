@@ -1,4 +1,0 @@
-$admin = get-localuser -name Administrator
-$password = "Test@123"
-
-runas /user:Administrator powershell.exe $password
